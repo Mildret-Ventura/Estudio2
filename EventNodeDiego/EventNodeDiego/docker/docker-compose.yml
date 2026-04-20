@@ -1,0 +1,48 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: event_node_mysql
+    restart: unless-stopped
+    command: --max-allowed-packet=16M --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: event_node
+      MYSQL_USER: vixo_dev
+      MYSQL_PASSWORD: eventnode01
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./mysql/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    networks:
+      - eventos_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../backend/eventnode-api
+      dockerfile: Dockerfile
+    container_name: event_node_backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/event_node?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&useUnicode=true
+      SPRING_DATASOURCE_USERNAME: vixo_dev
+      SPRING_DATASOURCE_PASSWORD: eventnode01
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - eventos_network
+
+volumes:
+  mysql_data:
+
+networks:
+  eventos_network:
+    driver: bridge
